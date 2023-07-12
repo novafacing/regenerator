@@ -41,21 +41,21 @@ pub struct RngVisitor {
 }
 
 impl RngVisitor {
-    fn try_sample<T>(&mut self) -> Result<T>
+    pub fn try_sample<T>(&mut self) -> Result<T>
     where
         StandardBuffered: TryDistribution<T>,
     {
         self.distribution.try_sample(&mut self.rng)
     }
 
-    fn try_sample_range<T>(&mut self, range: Range<T>) -> Result<T>
+    pub fn try_sample_range<T>(&mut self, range: Range<T>) -> Result<T>
     where
         StandardBuffered: TryRanged<T>,
     {
         self.distribution.try_sample_range(&mut self.rng, range)
     }
 
-    fn try_sample_range_inclusive<T>(&mut self, range: RangeInclusive<T>) -> Result<T>
+    pub fn try_sample_range_inclusive<T>(&mut self, range: RangeInclusive<T>) -> Result<T>
     where
         StandardBuffered: TryRanged<T>,
     {
