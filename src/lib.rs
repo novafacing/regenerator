@@ -322,27 +322,21 @@ mod tests {
     use anyhow::Result;
     use fuzzerang::StandardSeedableRng;
     use rand::{thread_rng, Rng, SeedableRng};
-    use regex_syntax::{ast::parse::Parser, hir::translate::Translator};
+    use regex_syntax::{ast::parse::Parser, hir::translate::TranslatorBuilder};
 
-    use crate::{visit, RngVisitor, RngVisitorBuilder, Visitor};
+    use crate::{visit, RngVisitorBuilder, Visitor};
 
-    const JSON_REGEXES: &[&str] = &[
-        r#"\\"#,
-        r#"(\"|\\|\/|b|f|n|r|t|u)"#,
-        r#"[\da-fA-F]"#,
-        r#"[0-1]+"#,
-        r#"[0-7]+"#,
-        r#"[1-9]"#,
-        r#".*"#,
-        r#"[^*]*\*+([^/*][^*]*\*+)*"#,
-    ];
-
-    fn test(regex: &str, seed: Vec<u8>) -> Result<Vec<u8>> {
+    fn test(regex: &str, seed: Vec<u8>, bytes: bool) -> Result<Vec<u8>> {
         println!("Testing regex: {}", regex);
         let mut p = Parser::new();
-        let mut t = Translator::new();
         let ast = p.parse(regex)?;
-        let hir = t.translate(regex, &ast)?;
+        let hir = if bytes {
+            let mut t = TranslatorBuilder::new().unicode(false).utf8(false).build();
+            t.translate(regex, &ast)?
+        } else {
+            let mut t = TranslatorBuilder::new().unicode(true).utf8(false).build();
+            t.translate(regex, &ast)?
+        };
         println!("HIR: {:?}", hir);
         let mut visitor = RngVisitorBuilder::default()
             .rng(StandardSeedableRng::from_seed(seed))
@@ -360,39 +354,39 @@ mod tests {
     #[test]
     fn test_literal() -> Result<()> {
         let regex = "A";
-        assert_eq!(test(regex, vec![])?, b"A");
+        assert_eq!(test(regex, vec![], true)?, b"A");
         Ok(())
     }
 
     #[test]
     fn test_char_repetition_exact() -> Result<()> {
         let regex = "A{2}";
-        assert_eq!(test(regex, vec![])?, b"AA");
+        assert_eq!(test(regex, vec![], true)?, b"AA");
         Ok(())
     }
 
     #[test]
     fn test_char_repetition_range_min() -> Result<()> {
         let regex = "A{3,6}";
-        assert_eq!(test(regex, vec![0b00000000])?, b"AAA");
+        assert_eq!(test(regex, vec![0b00000000], true)?, b"AAA");
         Ok(())
     }
 
     #[test]
     fn test_char_repetition_range_max() -> Result<()> {
         let regex = "A{3,6}";
-        assert_eq!(test(regex, vec![0b11111111])?, b"AAAAAA");
+        assert_eq!(test(regex, vec![0b11111111], true)?, b"AAAAAA");
         Ok(())
     }
 
     #[test]
     fn test_class_one() -> Result<()> {
         let regex = "[02468]";
-        assert_eq!(test(regex, vec![0b00000000])?, b"0");
-        assert_eq!(test(regex, vec![0b00000001])?, b"2");
-        assert_eq!(test(regex, vec![0b00000010])?, b"4");
-        assert_eq!(test(regex, vec![0b00000011])?, b"6");
-        assert_eq!(test(regex, vec![0b00000100])?, b"8");
+        assert_eq!(test(regex, vec![0b00000000], true)?, b"0");
+        assert_eq!(test(regex, vec![0b00000001], true)?, b"2");
+        assert_eq!(test(regex, vec![0b00000010], true)?, b"4");
+        assert_eq!(test(regex, vec![0b00000011], true)?, b"6");
+        assert_eq!(test(regex, vec![0b00000100], true)?, b"8");
         Ok(())
     }
 
@@ -402,7 +396,7 @@ mod tests {
         let mut seen = HashSet::new();
         for i in 0..32u8 {
             // Print i as binary
-            let r = test(regex, vec![i, i + 1])?;
+            let r = test(regex, vec![i, i + 1], true)?;
             if let Ok(s) = String::from_utf8(r) {
                 seen.insert(s);
             }
@@ -420,7 +414,7 @@ mod tests {
         let regex = "[^0]";
         for i in 0..(255 - 9) {
             // Print i as binary
-            let r = test(regex, (i..(i + 8)).collect())?;
+            let r = test(regex, (i..(i + 8)).collect(), true)?;
             if let Ok(s) = String::from_utf8(r) {
                 assert_ne!(s, "0");
             }
@@ -433,7 +427,7 @@ mod tests {
         let regex = "[^0-9]";
         for i in 0..(255 - 9) {
             // Print i as binary
-            let r = test(regex, (i..(i + 8)).collect())?;
+            let r = test(regex, (i..(i + 8)).collect(), true)?;
             if let Ok(s) = String::from_utf8(r) {
                 assert!(s.chars().all(|c| !c.is_ascii_digit()));
             }
@@ -444,16 +438,30 @@ mod tests {
     #[test]
     fn test_concat() -> Result<()> {
         let regex = "A+B+";
-        assert_eq!(test(regex, vec![0xde, 0xad, 0xbe, 0xef])?, b"AAAAAABBBB");
+        assert_eq!(
+            test(regex, vec![0xde, 0xad, 0xbe, 0xef], true)?,
+            b"AAAAAABBBB"
+        );
         Ok(())
     }
+
+    const JSON_REGEXES: &[&str] = &[
+        r#"\\"#,
+        r#"(\"|\\|\/|b|f|n|r|t|u)"#,
+        r#"[\da-fA-F]"#,
+        r#"[0-1]+"#,
+        r#"[0-7]+"#,
+        r#"[1-9]"#,
+        r#".*"#,
+        r#"[^*]*\*+([^/*][^*]*\*+)*"#,
+    ];
 
     #[test]
     fn test_json() -> Result<()> {
         let mut rng = thread_rng();
         for regex in JSON_REGEXES {
             println!("Testing regex: {}", regex);
-            test(regex, (0..64).map(|_| rng.gen()).collect())?;
+            test(regex, (0..64).map(|_| rng.gen()).collect(), true)?;
         }
         Ok(())
     }

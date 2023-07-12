@@ -1,5 +1,5 @@
 [package]
-name = "ragex"
+name = "regenerator"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,6 +9,6 @@ edition = "2021"
 anyhow = "1.0.71"
 regex-automata = "0.3.0"
 regex-syntax = "0.7.3"
-fuzzerang = { path = "../fuzzerang" }
+fuzzerang = "0.1.2"
 rand = "0.8.5"
 derive_builder = "0.12.0"
