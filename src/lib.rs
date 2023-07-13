@@ -182,7 +182,6 @@ impl Visitor for RngVisitor {
             HirKind::Look(_) => todo!(),
             _ => {}
         }
-        println!("{:?}", self.output);
         Ok(())
     }
 
@@ -327,7 +326,7 @@ mod tests {
     use crate::{visit, RngVisitorBuilder, Visitor};
 
     fn test(regex: &str, seed: Vec<u8>, bytes: bool) -> Result<Vec<u8>> {
-        println!("Testing regex: {}", regex);
+        // println!("Testing regex: {}", regex);
         let mut p = Parser::new();
         let ast = p.parse(regex)?;
         let hir = if bytes {
@@ -337,17 +336,17 @@ mod tests {
             let mut t = TranslatorBuilder::new().unicode(true).utf8(false).build();
             t.translate(regex, &ast)?
         };
-        println!("HIR: {:?}", hir);
+        // println!("HIR: {:?}", hir);
         let mut visitor = RngVisitorBuilder::default()
             .rng(StandardSeedableRng::from_seed(seed))
             .build()?;
         visit(&hir, &mut visitor)?;
         let r = visitor.finish()?;
-        println!("Result: {:?}", r);
-        match String::from_utf8(r.clone()) {
-            Ok(s) => println!("Result (string): {}", s),
-            Err(e) => eprintln!("Result (invalid UTF-8): {:?}", e),
-        }
+        // println!("Result: {:?}", r);
+        // match String::from_utf8(r.clone()) {
+        //     Ok(s) => println!("Result (string): {}", s),
+        //     Err(e) => eprintln!("Result (invalid UTF-8): {:?}", e),
+        // }
         Ok(r)
     }
 
@@ -460,7 +459,7 @@ mod tests {
     fn test_json() -> Result<()> {
         let mut rng = thread_rng();
         for regex in JSON_REGEXES {
-            println!("Testing regex: {}", regex);
+            // println!("Testing regex: {}", regex);
             test(regex, (0..64).map(|_| rng.gen()).collect(), true)?;
         }
         Ok(())
